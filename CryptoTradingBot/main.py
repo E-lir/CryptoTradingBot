@@ -1,5 +1,4 @@
 from binance import Client
-from enum import Enum
 import pandas as pd
 import websockets
 import json
@@ -8,16 +7,17 @@ import requests
 import ta
 
 
-api_key = 'api_key'
-secret_key = 'secret_key'
-client = Client(api_key, secret_key)
+with open('keys.txt') as f:
+    api_key = f.readline().strip()
+    secret_key = f.readline()
+    client = Client(api_key, secret_key)
 
 stream = websockets.connect('wss://stream.binance.com:9443/stream?streams=ethusdt@miniTicker')
 
 state = 'ready'
 entry_price = 0
 bal_usd = 100
-bal_eth = 100
+bal_eth = 0
 
 
 async def main():
@@ -77,16 +77,14 @@ def strategy(df, short_frame):
         if sma1.sma_indicator().iloc[-1] <= l_band:
             state = 'longing'
 
-        print(short_frame.iloc[-1])
-
     elif state == 'shorting':
         if sma5.sma_indicator().iloc[-7] > sma5.sma_indicator().iloc[-1]:
-            bal_eth = bal_usd * -1
+            bal_eth = bal_usd / short_frame.Price.iloc[-1] * -1
             bal_usd = bal_usd * 2
             entry_price = short_frame.Price.iloc[-1]
             state = 'short'
             print("SHORT")
-            print("ETH Bal: " + bal_eth + "    USD Bal: " + bal_usd)
+            print("ETH Bal: " + str(bal_eth) + "    USD Bal: " + str(bal_usd) + "     Entry price: " + str(entry_price))
 
     elif state == 'longing':
         if sma5.sma_indicator().iloc[-7] < sma5.sma_indicator().iloc[-1]:
@@ -95,25 +93,25 @@ def strategy(df, short_frame):
             entry_price = short_frame.Price.iloc[-1]
             state = 'long'
             print("LONG")
-            print("ETH Bal: " + bal_eth + "    USD Bal: " + bal_usd)
+            print("ETH Bal: " + str(bal_eth) + "    USD Bal: " + str(bal_usd) + "     Entry price: " + str(entry_price))
 
     elif state == 'short':
         # wait for price to hit middle bollinger band
-        if short_frame.Price.iloc[-1] <= m_band or short_frame.Price.iloc[-1] > entry_price * 1.05:
+        if short_frame.Price.iloc[-1] <= m_band or short_frame.Price.iloc[-1] > entry_price * 1.005:
             bal_usd = bal_usd + (bal_eth * short_frame.Price.iloc[-1])
             bal_eth = 0
             state = 'ready'
             print("CLOSED SHORT")
-            print("ETH Bal: " + bal_eth + "    USD Bal: " + bal_usd)
+            print("ETH Bal: " + str(bal_eth) + "    USD Bal: " + str(bal_usd) + "     Exit price: " + str(short_frame.Price.iloc[-1]))
 
     elif state == 'long':
         # wait for price to hit middle bollinger band
-        if short_frame.Price.iloc[-1] >= m_band or short_frame.Price.iloc[-1] < entry_price / 1.05:
+        if short_frame.Price.iloc[-1] >= m_band or short_frame.Price.iloc[-1] < entry_price / 1.005:
             bal_usd = bal_eth * short_frame.Price.iloc[-1]
             bal_eth = 0
             state = 'ready'
             print("CLOSED LONG")
-            print("ETH Bal: " + bal_eth + "    USD Bal: " + bal_usd)
+            print("ETH Bal: " + str(bal_eth) + "    USD Bal: " + str(bal_usd) + "     Exit price: " + str(short_frame.Price.iloc[-1]))
 
     else:
         print("Invalid State: " + state)
